@@ -301,6 +301,121 @@ struct SymptomLogsView: View {
     }
 }
 
+//struct TrackingView: View {
+//    @Binding var selectedDuration: TimeInterval
+//    @ObservedObject var viewModel: EyeTrackingViewModel
+//    
+//    var body: some View {
+//        NavigationStack {
+//            ScrollView {
+//                VStack(spacing: 20) {
+//                    if viewModel.isExerciseActive {
+//                        // Show ExerciseView when exercise is active
+//                        ExerciseView(viewModel: viewModel)
+//                    } else {
+//                        // Show the main content when exercise is not active
+//                        VStack(spacing: 30) {
+//                            // Stats Card
+//                            VStack(spacing: 15) {
+//                                HStack(spacing: 20) {
+//                                    StatCard(title: "Blinks", value: "\(viewModel.blinkCount)", icon: "eye")
+//                                    StatCard(title: "Twitches", value: "\(viewModel.eyebrowTwitchCount)", icon: "eye.trianglebadge.exclamationmark")
+//                                }
+//                                
+//                                if viewModel.eyeStrainDetected {
+//                                    HStack {
+//                                        Image(systemName: "exclamationmark.triangle.fill")
+//                                            .foregroundColor(.orange)
+//                                        Text("Eye strain detected")
+//                                            .font(.subheadline)
+//                                            .foregroundColor(.orange)
+//                                    }
+//                                    .padding()
+//                                    .background(Color.orange.opacity(0.1))
+//                                    .cornerRadius(10)
+//                                }
+//                            }
+//                            .padding()
+//                            .background(Color.gray.opacity(0.1))
+//                            .cornerRadius(15)
+//                            
+//                            // Duration Selector
+//                            VStack(spacing: 15) {
+//                                Text("Exercise Duration")
+//                                    .font(.headline)
+//                                
+//                                Picker("Duration", selection: $selectedDuration) {
+//                                    Text("30 Seconds").tag(30.0)
+//                                    Text("1 Minute").tag(60.0)
+//                                    Text("2 Minutes").tag(120.0)
+//                                }
+//                                .pickerStyle(SegmentedPickerStyle())
+//                            }
+//                            .padding()
+//                            .background(Color.gray.opacity(0.1))
+//                            .cornerRadius(15)
+//                            
+//                            // Start Button
+//                            Button(action: {
+//                                viewModel.exerciseDuration = selectedDuration
+//                                viewModel.startExercise()
+//                            }) {
+//                                HStack {
+//                                    Image(systemName: "play.fill")
+//                                    Text("Start Exercise")
+//                                }
+//                                .font(.headline)
+//                                .foregroundColor(.white)
+//                                .frame(maxWidth: .infinity)
+//                                .padding()
+//                                .background(Color.blue)
+//                                .cornerRadius(15)
+//                            }
+//                        }
+//                        .padding()
+//                    }
+//                    
+//                    // Logs Section (As a Card)
+//                    if !viewModel.isExerciseActive {
+//                        VStack(alignment: .leading, spacing: 10) {
+//                            Text("Recent Symptom Logs")
+//                                .font(.headline)
+//                                .padding(.horizontal)
+//                            
+//                            ScrollView(.horizontal, showsIndicators: false) {
+//                                HStack(spacing: 10) {
+//                                    // Blink Logs
+//                                    if !viewModel.blinkLogs.isEmpty {
+//                                        LogCard(
+//                                            title: "Blinks",
+//                                            logs: viewModel.blinkLogs,
+//                                            color: .blue
+//                                        )
+//                                    }
+//                                    
+//                                    // Twitch Logs
+//                                    if !viewModel.twitchLogs.isEmpty {
+//                                        LogCard(
+//                                            title: "Twitches",
+//                                            logs: viewModel.twitchLogs,
+//                                            color: .orange
+//                                        )
+//                                    }
+//                                }
+//                                .padding(.horizontal)
+//                            }
+//                        }
+//                    }
+//                }
+//                .padding(.vertical)
+//            }
+//            .navigationTitle("Eye Care")
+//            .navigationBarTitleDisplayMode(.large)
+//        }
+//    }
+//}
+
+
 struct TrackingView: View {
     @Binding var selectedDuration: TimeInterval
     @ObservedObject var viewModel: EyeTrackingViewModel
@@ -378,29 +493,23 @@ struct TrackingView: View {
                     // Logs Section (As a Card)
                     if !viewModel.isExerciseActive {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Recent Symptom Logs")
+                            Text("Symptom Summary")
                                 .font(.headline)
                                 .padding(.horizontal)
                             
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 10) {
-                                    // Blink Logs
-                                    if !viewModel.blinkLogs.isEmpty {
-                                        LogCard(
-                                            title: "Blinks",
-                                            logs: viewModel.blinkLogs,
-                                            color: .blue
-                                        )
-                                    }
+                            ScrollView(.vertical, showsIndicators: false) {
+                                VStack(spacing: 10) {
+                                    LogCard(
+                                        title: "Blinks",
+                                        count: viewModel.blinkCount,
+                                        color: .blue
+                                    )
                                     
-                                    // Twitch Logs
-                                    if !viewModel.twitchLogs.isEmpty {
-                                        LogCard(
-                                            title: "Twitches",
-                                            logs: viewModel.twitchLogs,
-                                            color: .orange
-                                        )
-                                    }
+                                    LogCard(
+                                        title: "Twitches",
+                                        count: viewModel.eyebrowTwitchCount,
+                                        color: .orange
+                                    )
                                 }
                                 .padding(.horizontal)
                             }
@@ -415,9 +524,52 @@ struct TrackingView: View {
     }
 }
 
+
+//struct LogCard: View {
+//    let title: String
+//    let logs: [SymptomLog]
+//    let color: Color
+//    
+//    var body: some View {
+//        VStack(alignment: .leading, spacing: 8) {
+//            Text(title)
+//                .font(.headline)
+//                .foregroundColor(color)
+//            
+//            ForEach(logs.prefix(5)) { log in
+//                HStack {
+//                    Text(log.date, style: .time)
+//                        .font(.caption)
+//                    
+//                    Spacer()
+//                    
+//                    Text(title == "Blinks" ? "Blink" : "Twitch")
+//                        .font(.caption)
+//                        .foregroundColor(color)
+//                }
+//                .padding(.vertical, 4)
+//                .background(color.opacity(0.1))
+//                .cornerRadius(8)
+//            }
+//            
+//            if logs.count > 5 {
+//                Text("+ \(logs.count - 5) more")
+//                    .font(.caption)
+//                    .foregroundColor(.gray)
+//            }
+//        }
+//        .padding()
+//        .background(Color.white)
+//        .cornerRadius(15)
+//        .shadow(color: .gray.opacity(0.2), radius: 5, x: 0, y: 2)
+//        .frame(width: 200)
+//    }
+//}
+
+
 struct LogCard: View {
     let title: String
-    let logs: [SymptomLog]
+    let count: Int
     let color: Color
     
     var body: some View {
@@ -426,36 +578,22 @@ struct LogCard: View {
                 .font(.headline)
                 .foregroundColor(color)
             
-            ForEach(logs.prefix(5)) { log in
-                HStack {
-                    Text(log.date, style: .time)
-                        .font(.caption)
-                    
-                    Spacer()
-                    
-                    Text(title == "Blinks" ? "Blink" : "Twitch")
-                        .font(.caption)
-                        .foregroundColor(color)
-                }
-                .padding(.vertical, 4)
-                .background(color.opacity(0.1))
-                .cornerRadius(8)
-            }
+            Text("\(count)")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(color)
+                .padding(.vertical, 8)
             
-            if logs.count > 5 {
-                Text("+ \(logs.count - 5) more")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
+            Text("Total \(title.lowercased()) detected")
+                .font(.caption)
+                .foregroundColor(.gray)
         }
         .padding()
+        .frame(maxWidth: .infinity)
         .background(Color.white)
         .cornerRadius(15)
         .shadow(color: .gray.opacity(0.2), radius: 5, x: 0, y: 2)
-        .frame(width: 200)
     }
 }
-
 
 struct ExerciseView: View {
     @ObservedObject var viewModel: EyeTrackingViewModel
@@ -589,16 +727,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Tracking Preferences")) {
-                    Toggle("Enable Notifications", isOn: $notificationsEnabled)
-                    
-                    Toggle("Screen Break Reminder", isOn: $screenBreakReminder)
-                    
-                    Stepper(value: $blinkThreshold, in: 5...20, step: 1) {
-                        Text("Blink Threshold: \(Int(blinkThreshold))")
-                    }
-                }
-                
                 Section(header: Text("Session Stats")) {
                     HStack {
                         Text("Total Blinks")

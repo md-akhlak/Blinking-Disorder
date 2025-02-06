@@ -8,15 +8,15 @@ import PackageDescription
 import AppleProductTypes
 
 let package = Package(
-    name: "Eye Care Companion",
+    name: "Eye-Care-Companion",
     platforms: [
-        .iOS("16.0")
+        .iOS("16.6")
     ],
     products: [
         .iOSApplication(
-            name: "Eye Care Companion",
+            name: "Eye-Care-Companion",
             targets: ["AppModule"],
-            bundleIdentifier: "com.akhlak.Eye-Care-Companion",
+            bundleIdentifier: "Akhlak.LearnSathi",
             teamIdentifier: "G35LFCGGKB",
             displayVersion: "1.0",
             bundleVersion: "1",
@@ -31,8 +31,14 @@ let package = Package(
                 .landscapeRight,
                 .landscapeLeft,
                 .portraitUpsideDown(.when(deviceFamilies: [.pad]))
+            ],
+            capabilities: [
+                .camera(purposeString: "Camera will be used for detect eye blink pattern")
             ]
         )
+    ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-xcode-playground-support.git", .branch("main"))
     ],
     targets: [
         .executableTarget(
@@ -40,5 +46,5 @@ let package = Package(
             path: "."
         )
     ],
-    swiftLanguageVersions: [.v6]
+    swiftLanguageVersions: [.version("6")]
 )

@@ -25,8 +25,19 @@ struct EducationalContent: Identifiable {
     let url: String
 }
 
+struct ExerciseSession: Identifiable {
+    let id = UUID()
+    let timestamp: Date
+    let duration: TimeInterval
+    let blinkCount: Int
+    let twitchCount: Int
+}
+
 // MARK: - View Models
 class EyeTrackingViewModel: NSObject, ObservableObject, ARSessionDelegate {
+    
+    @Published var exerciseSessions: [ExerciseSession] = []
+
     
     @Published var blinkCount = 0
     @Published var eyebrowTwitchCount = 0
@@ -56,6 +67,11 @@ class EyeTrackingViewModel: NSObject, ObservableObject, ARSessionDelegate {
     }
     
     func startExercise() {
+        
+        blinkCount = 0
+        eyebrowTwitchCount = 0
+        eyeStrainDetected = false
+        
         guard ARFaceTrackingConfiguration.isSupported else {
             print("Face tracking is not supported on this device.")
             return
@@ -91,7 +107,16 @@ class EyeTrackingViewModel: NSObject, ObservableObject, ARSessionDelegate {
         timer = nil
         arSession?.pause()
         isTracking = false
-        isExerciseActive = false // Ensure this is set to false
+        isExerciseActive = false
+        
+        // Save the session
+        let newSession = ExerciseSession(
+            timestamp: Date(),
+            duration: exerciseDuration,
+            blinkCount: blinkCount,
+            twitchCount: eyebrowTwitchCount
+        )
+        exerciseSessions.insert(newSession, at: 0) // Add new session at the beginning
         
         // Analyze results
         analyzeResults()
@@ -139,34 +164,74 @@ class EyeTrackingViewModel: NSObject, ObservableObject, ARSessionDelegate {
         }
     }
     
+    
     private func processFaceAnchor(_ faceAnchor: ARFaceAnchor) {
         let blendShapes = faceAnchor.blendShapes
         
-        // Detect blinking
+        // Improved blink detection
         if let leftEyeBlink = blendShapes[.eyeBlinkLeft]?.floatValue,
            let rightEyeBlink = blendShapes[.eyeBlinkRight]?.floatValue {
-            let blinkThreshold: Float = 0.5
+            let blinkThreshold: Float = 0.4  // Lowered threshold for better sensitivity
+            
+            // Check if both eyes are blinking together
             if leftEyeBlink > blinkThreshold && rightEyeBlink > blinkThreshold {
-                blinkCount += 1
-                logSymptom(type: "Blink", intensity: 1)
+                // Only count as a blink if we haven't logged one very recently
+                if let lastBlink = blinkLogs.first {
+                    let timeSinceLastBlink = Date().timeIntervalSince(lastBlink.date)
+                    if timeSinceLastBlink > 0.3 { // Minimum time between blinks (300ms)
+                        blinkCount += 1
+                        logSymptom(type: "Blink", intensity: Int((leftEyeBlink + rightEyeBlink) * 50))
+                    }
+                } else {
+                    blinkCount += 1
+                    logSymptom(type: "Blink", intensity: Int((leftEyeBlink + rightEyeBlink) * 50))
+                }
             }
         }
         
-        // Detect eyebrow twitching
+        // Improved twitch detection
         if let browInnerUp = blendShapes[.browInnerUp]?.floatValue,
-           browInnerUp > 0.5 {
-            eyebrowTwitchCount += 1
-            logSymptom(type: "Twitch", intensity: 1)
+           let browOuterUpLeft = blendShapes[.browOuterUpLeft]?.floatValue,
+           let browOuterUpRight = blendShapes[.browOuterUpRight]?.floatValue {
+            
+            let twitchThreshold: Float = 0.3  // Lowered threshold for better sensitivity
+            let combinedBrowMovement = (browInnerUp + browOuterUpLeft + browOuterUpRight) / 3.0
+            
+            if combinedBrowMovement > twitchThreshold {
+                // Only count as a twitch if we haven't logged one very recently
+                if let lastTwitch = twitchLogs.first {
+                    let timeSinceLastTwitch = Date().timeIntervalSince(lastTwitch.date)
+                    if timeSinceLastTwitch > 0.5 { // Minimum time between twitches (500ms)
+                        eyebrowTwitchCount += 1
+                        logSymptom(type: "Twitch", intensity: Int(combinedBrowMovement * 100))
+                    }
+                } else {
+                    eyebrowTwitchCount += 1
+                    logSymptom(type: "Twitch", intensity: Int(combinedBrowMovement * 100))
+                }
+            }
         }
         
-        // Detect eye strain
+        // Improved eye strain detection
         if let eyeBlinkLeft = blendShapes[.eyeBlinkLeft]?.floatValue,
            let eyeBlinkRight = blendShapes[.eyeBlinkRight]?.floatValue,
-           eyeBlinkLeft > 0.8 && eyeBlinkRight > 0.8 {
-            eyeStrainDetected = true
+           let eyeSqueezeLeft = blendShapes[.eyeSquintLeft]?.floatValue,
+           let eyeSqueezeRight = blendShapes[.eyeSquintRight]?.floatValue {
+            
+            let combinedEyeStrain = (eyeBlinkLeft + eyeBlinkRight + eyeSqueezeLeft + eyeSqueezeRight) / 4.0
+            
+            if combinedEyeStrain > 0.6 { // Adjusted threshold for eye strain
+                eyeStrainDetected = true
+            }
         }
     }
+    
+    
 }
+
+
+
+
 // MARK: - Views
 
 struct ContentView: View {
@@ -237,183 +302,6 @@ struct StatCard: View {
     }
 }
 
-struct SymptomLogsView: View {
-    @ObservedObject var viewModel: EyeTrackingViewModel
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Symptom Logs")
-                .font(.headline)
-            
-            // Blink Logs
-            VStack(alignment: .leading) {
-                Text("Blinks")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-                
-                if viewModel.blinkLogs.isEmpty {
-                    Text("No blink logs")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                } else {
-                    ForEach(viewModel.blinkLogs) { log in
-                        HStack {
-                            Text(log.date, style: .time)
-                                .font(.caption)
-                            Spacer()
-                            Text("Blink")
-                                .font(.caption)
-                                .foregroundColor(.blue)
-                        }
-                    }
-                }
-            }
-            
-            Divider()
-            
-            // Twitch Logs
-            VStack(alignment: .leading) {
-                Text("Twitches")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-                
-                if viewModel.twitchLogs.isEmpty {
-                    Text("No twitch logs")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                } else {
-                    ForEach(viewModel.twitchLogs) { log in
-                        HStack {
-                            Text(log.date, style: .time)
-                                .font(.caption)
-                            Spacer()
-                            Text("Twitch")
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                        }
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(15)
-    }
-}
-
-//struct TrackingView: View {
-//    @Binding var selectedDuration: TimeInterval
-//    @ObservedObject var viewModel: EyeTrackingViewModel
-//    
-//    var body: some View {
-//        NavigationStack {
-//            ScrollView {
-//                VStack(spacing: 20) {
-//                    if viewModel.isExerciseActive {
-//                        // Show ExerciseView when exercise is active
-//                        ExerciseView(viewModel: viewModel)
-//                    } else {
-//                        // Show the main content when exercise is not active
-//                        VStack(spacing: 30) {
-//                            // Stats Card
-//                            VStack(spacing: 15) {
-//                                HStack(spacing: 20) {
-//                                    StatCard(title: "Blinks", value: "\(viewModel.blinkCount)", icon: "eye")
-//                                    StatCard(title: "Twitches", value: "\(viewModel.eyebrowTwitchCount)", icon: "eye.trianglebadge.exclamationmark")
-//                                }
-//                                
-//                                if viewModel.eyeStrainDetected {
-//                                    HStack {
-//                                        Image(systemName: "exclamationmark.triangle.fill")
-//                                            .foregroundColor(.orange)
-//                                        Text("Eye strain detected")
-//                                            .font(.subheadline)
-//                                            .foregroundColor(.orange)
-//                                    }
-//                                    .padding()
-//                                    .background(Color.orange.opacity(0.1))
-//                                    .cornerRadius(10)
-//                                }
-//                            }
-//                            .padding()
-//                            .background(Color.gray.opacity(0.1))
-//                            .cornerRadius(15)
-//                            
-//                            // Duration Selector
-//                            VStack(spacing: 15) {
-//                                Text("Exercise Duration")
-//                                    .font(.headline)
-//                                
-//                                Picker("Duration", selection: $selectedDuration) {
-//                                    Text("30 Seconds").tag(30.0)
-//                                    Text("1 Minute").tag(60.0)
-//                                    Text("2 Minutes").tag(120.0)
-//                                }
-//                                .pickerStyle(SegmentedPickerStyle())
-//                            }
-//                            .padding()
-//                            .background(Color.gray.opacity(0.1))
-//                            .cornerRadius(15)
-//                            
-//                            // Start Button
-//                            Button(action: {
-//                                viewModel.exerciseDuration = selectedDuration
-//                                viewModel.startExercise()
-//                            }) {
-//                                HStack {
-//                                    Image(systemName: "play.fill")
-//                                    Text("Start Exercise")
-//                                }
-//                                .font(.headline)
-//                                .foregroundColor(.white)
-//                                .frame(maxWidth: .infinity)
-//                                .padding()
-//                                .background(Color.blue)
-//                                .cornerRadius(15)
-//                            }
-//                        }
-//                        .padding()
-//                    }
-//                    
-//                    // Logs Section (As a Card)
-//                    if !viewModel.isExerciseActive {
-//                        VStack(alignment: .leading, spacing: 10) {
-//                            Text("Recent Symptom Logs")
-//                                .font(.headline)
-//                                .padding(.horizontal)
-//                            
-//                            ScrollView(.horizontal, showsIndicators: false) {
-//                                HStack(spacing: 10) {
-//                                    // Blink Logs
-//                                    if !viewModel.blinkLogs.isEmpty {
-//                                        LogCard(
-//                                            title: "Blinks",
-//                                            logs: viewModel.blinkLogs,
-//                                            color: .blue
-//                                        )
-//                                    }
-//                                    
-//                                    // Twitch Logs
-//                                    if !viewModel.twitchLogs.isEmpty {
-//                                        LogCard(
-//                                            title: "Twitches",
-//                                            logs: viewModel.twitchLogs,
-//                                            color: .orange
-//                                        )
-//                                    }
-//                                }
-//                                .padding(.horizontal)
-//                            }
-//                        }
-//                    }
-//                }
-//                .padding(.vertical)
-//            }
-//            .navigationTitle("Eye Care")
-//            .navigationBarTitleDisplayMode(.large)
-//        }
-//    }
-//}
 
 
 struct TrackingView: View {
@@ -425,12 +313,9 @@ struct TrackingView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     if viewModel.isExerciseActive {
-                        // Show ExerciseView when exercise is active
                         ExerciseView(viewModel: viewModel)
                     } else {
-                        // Show the main content when exercise is not active
                         VStack(spacing: 30) {
-                            // Stats Card
                             VStack(spacing: 15) {
                                 HStack(spacing: 20) {
                                     StatCard(title: "Blinks", value: "\(viewModel.blinkCount)", icon: "eye")
@@ -488,30 +373,22 @@ struct TrackingView: View {
                             }
                         }
                         .padding()
-                    }
-                    
-                    // Logs Section (As a Card)
-                    if !viewModel.isExerciseActive {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Symptom Summary")
-                                .font(.headline)
-                                .padding(.horizontal)
-                            
-                            ScrollView(.vertical, showsIndicators: false) {
-                                VStack(spacing: 10) {
-                                    LogCard(
-                                        title: "Blinks",
-                                        count: viewModel.blinkCount,
-                                        color: .blue
-                                    )
-                                    
-                                    LogCard(
-                                        title: "Twitches",
-                                        count: viewModel.eyebrowTwitchCount,
-                                        color: .orange
-                                    )
+                        
+                        // Exercise History Section
+                        if !viewModel.exerciseSessions.isEmpty {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Exercise History")
+                                    .font(.headline)
+                                    .padding(.horizontal)
+                                
+                                ScrollView(.vertical, showsIndicators: false) {
+                                    VStack(spacing: 15) {
+                                        ForEach(viewModel.exerciseSessions) { session in
+                                            LogCard(session: session)
+                                        }
+                                    }
+                                    .padding(.horizontal)
                                 }
-                                .padding(.horizontal)
                             }
                         }
                     }
@@ -525,70 +402,61 @@ struct TrackingView: View {
 }
 
 
-//struct LogCard: View {
-//    let title: String
-//    let logs: [SymptomLog]
-//    let color: Color
-//    
-//    var body: some View {
-//        VStack(alignment: .leading, spacing: 8) {
-//            Text(title)
-//                .font(.headline)
-//                .foregroundColor(color)
-//            
-//            ForEach(logs.prefix(5)) { log in
-//                HStack {
-//                    Text(log.date, style: .time)
-//                        .font(.caption)
-//                    
-//                    Spacer()
-//                    
-//                    Text(title == "Blinks" ? "Blink" : "Twitch")
-//                        .font(.caption)
-//                        .foregroundColor(color)
-//                }
-//                .padding(.vertical, 4)
-//                .background(color.opacity(0.1))
-//                .cornerRadius(8)
-//            }
-//            
-//            if logs.count > 5 {
-//                Text("+ \(logs.count - 5) more")
-//                    .font(.caption)
-//                    .foregroundColor(.gray)
-//            }
-//        }
-//        .padding()
-//        .background(Color.white)
-//        .cornerRadius(15)
-//        .shadow(color: .gray.opacity(0.2), radius: 5, x: 0, y: 2)
-//        .frame(width: 200)
-//    }
-//}
-
 
 struct LogCard: View {
-    let title: String
-    let count: Int
-    let color: Color
-    
+    let session: ExerciseSession
+        
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.headline)
-                .foregroundColor(color)
+        VStack(alignment: .leading, spacing: 12) {
+            // Timestamp and Duration
+            HStack {
+                Text(session.timestamp, style: .time)
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                
+                Spacer()
+                
+                Text("Duration: \(Int(session.duration))s")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+            }
             
-            Text("\(count)")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundColor(color)
-                .padding(.vertical, 8)
+            Divider()
             
-            Text("Total \(title.lowercased()) detected")
-                .font(.caption)
-                .foregroundColor(.gray)
+            // Stats
+            HStack(spacing: 20) {
+                // Blinks
+                VStack(alignment: .leading) {
+                    HStack {
+                        Image(systemName: "eye")
+                            .foregroundColor(.blue)
+                        Text("Blinks")
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
+                    }
+                    Text("\(session.blinkCount)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                }
+                
+                Spacer()
+                
+                // Twitches
+                VStack(alignment: .leading) {
+                    HStack {
+                        Image(systemName: "eye.trianglebadge.exclamationmark")
+                            .foregroundColor(.orange)
+                        Text("Twitches")
+                            .font(.subheadline)
+                            .foregroundColor(.orange)
+                    }
+                    Text("\(session.twitchCount)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                }
+            }
         }
         .padding()
-        .frame(maxWidth: .infinity)
         .background(Color.white)
         .cornerRadius(15)
         .shadow(color: .gray.opacity(0.2), radius: 5, x: 0, y: 2)
@@ -694,7 +562,7 @@ struct RelaxationView: View {
 // MARK: - Education View
 struct EducationView: View {
     let articles = [
-        EducationalContent(title: "What is Blepharospasm?", description: "Learn about the causes and treatments for blepharospasm.", url: "https://example.com/blepharospasm"),
+        EducationalContent(title: "What is Blepharospasm?", description: "Learn about the causes and treatments for blepharospasm.", url: "https://en.wikipedia.org/wiki/Blepharospasm"),
         EducationalContent(title: "Understanding Tic Disorders", description: "A guide to tic disorders and how to manage them.", url: "https://example.com/tics"),
         EducationalContent(title: "Eye Strain and Screen Time", description: "Tips to reduce eye strain from prolonged screen use.", url: "https://example.com/eye-strain")
     ]

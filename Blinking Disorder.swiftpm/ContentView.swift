@@ -1,5 +1,6 @@
 import SwiftUI
 @preconcurrency import ARKit
+@preconcurrency import AVFoundation
 
 // MARK: - Data Models
 struct SymptomLog: Identifiable {
@@ -35,10 +36,7 @@ struct ExerciseSession: Identifiable {
 
 // MARK: - View Models
 class EyeTrackingViewModel: NSObject, ObservableObject, ARSessionDelegate {
-    
     @Published var exerciseSessions: [ExerciseSession] = []
-
-    
     @Published var blinkCount = 0
     @Published var eyebrowTwitchCount = 0
     @Published var eyeStrainDetected = false
@@ -164,7 +162,6 @@ class EyeTrackingViewModel: NSObject, ObservableObject, ARSessionDelegate {
         }
     }
     
-    
     private func processFaceAnchor(_ faceAnchor: ARFaceAnchor) {
         let blendShapes = faceAnchor.blendShapes
         
@@ -226,8 +223,8 @@ class EyeTrackingViewModel: NSObject, ObservableObject, ARSessionDelegate {
         }
     }
     
-    
 }
+
 
 struct ARViewContainer: UIViewRepresentable {
     let eyeTracker: EyeTrackingViewModel
@@ -243,7 +240,6 @@ struct ARViewContainer: UIViewRepresentable {
 }
 
 // MARK: - Views
-
 struct ContentView: View {
     @StateObject private var viewModel = EyeTrackingViewModel()
     @State private var selectedDuration: TimeInterval = 30
@@ -312,32 +308,68 @@ struct StatCard: View {
     }
 }
 
-// Your imports remain the same
-
 struct TimeCard: View {
     let duration: TimeInterval
     let isSelected: Bool
     
     var body: some View {
-        VStack(spacing: 8) {
-            Text(duration == 30 ? "Quick" : duration == 60 ? "Regular" : "Extended")
-                .font(.headline)
-                .foregroundStyle(isSelected ? .white : .primary)
+        VStack(spacing: 12) {
+            // Duration icon
+            Circle()
+                .fill(isSelected ? Color.blue : Color.blue.opacity(0.1))
+                .frame(width: 56, height: 56)
+                .overlay {
+                    Image(systemName: getDurationIcon())
+                        .font(.title2)
+                        .foregroundStyle(isSelected ? .white : .blue)
+                }
             
+            Text(getDurationTitle())
+                .font(.headline)
+                .foregroundStyle(isSelected ? .primary : .secondary)
+            
+            // Time text
             Text(formatDuration(duration))
                 .font(.subheadline)
-                .foregroundStyle(isSelected ? .white.opacity(0.9) : .secondary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(isSelected ?
-                    AnyShapeStyle(LinearGradient(colors: [.blue, .blue.opacity(0.8)],
-                                              startPoint: .leading,
-                                              endPoint: .trailing)) :
-                    AnyShapeStyle(Color(.systemGray6)))
+                .fill(Color(.systemBackground))
+                .shadow(color: isSelected ? .blue.opacity(0.3) : .black.opacity(0.05),
+                       radius: isSelected ? 8 : 4,
+                       x: 0,
+                       y: isSelected ? 4 : 2)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+        )
+        .animation(.spring(dampingFraction: 0.7), value: isSelected)
+    }
+    
+    private func getDurationIcon() -> String {
+        switch duration {
+        case 30:
+            return "bolt.fill"
+        case 60:
+            return "clock.fill"
+        default:
+            return "timer.square.fill"
+        }
+    }
+    
+    private func getDurationTitle() -> String {
+        switch duration {
+        case 30:
+            return "Quick"
+        case 60:
+            return "Regular"
+        default:
+            return "Extended"
+        }
     }
     
     private func formatDuration(_ seconds: TimeInterval) -> String {
@@ -345,7 +377,7 @@ struct TimeCard: View {
     }
 }
 
-// Rest of the code remains the same
+
 struct TrackingView: View {
     @Binding var selectedDuration: TimeInterval
     @ObservedObject var viewModel: EyeTrackingViewModel
@@ -409,7 +441,7 @@ struct TrackingView: View {
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.blue.gradient)
+                                .background(Color.blue)
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
                         }
                         .padding()
@@ -486,184 +518,114 @@ struct LogCard: View {
         .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 4)
     }
 }
+
 struct ExerciseView: View {
     @ObservedObject var viewModel: EyeTrackingViewModel
+    @State private var targetPosition = CGPoint(x: 0, y: 0)
+    @State private var isAnimating = false
     
     var body: some View {
-        VStack(spacing: 25) {
-            // Timer Display
-            ZStack {
-                Circle()
-                    .stroke(Color.blue.opacity(0.2), lineWidth: 10)
-                    .frame(width: 200, height: 200)
-                
-                Circle()
-                    .trim(from: 0, to: CGFloat(viewModel.remainingTime / viewModel.exerciseDuration))
-                    .stroke(Color.blue, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                    .frame(width: 200, height: 200)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 1), value: viewModel.remainingTime)
-                
-                VStack {
-                    Text("\(Int(viewModel.remainingTime))")
-                        .font(.system(size: 50, weight: .bold))
-                    Text("seconds")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                }
-            }
-            
-            Text("Follow the moving dot with your eyes")
-                .font(.headline)
-            
-            // Exercise Area
-            ZStack {
-                Circle()
-                    .fill(Color.blue)
-                    .frame(width: 20, height: 20)
-                    .offset(x: viewModel.isExerciseActive ? CGFloat.random(in: -100...100) : 0,
-                            y: viewModel.isExerciseActive ? CGFloat.random(in: -100...100) : 0)
-                    .animation(.easeInOut(duration: 1), value: viewModel.isExerciseActive)
-            }
-            .frame(maxWidth: .infinity, maxHeight: 200)
-            .background(Color.gray.opacity(0.1))
-            .cornerRadius(15)
-            
-            // Stop Button
-            Button(action: {
-                print("Stop Exercise Button Pressed")
-                viewModel.stopExercise()
-            }) {
-                HStack {
-                    Image(systemName: "stop.fill")
-                    Text("Stop Exercise")
-                }
-                .font(.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.red)
-                .cornerRadius(15)
-            }
-        }
-        .padding()
-        .background(Color.white) // Ensure background is visible
-        .edgesIgnoringSafeArea(.all)
-    }
-}
-
-struct BreathingExerciseView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var isBreathing = false
-    @State private var breathingPhase = "Get Ready"
-    @State private var scale: CGFloat = 1.0
-    @State private var remainingTime: TimeInterval = 300 // 5 minutes total
-    @State private var phaseCountdown: Int = 5 // Countdown for each phase
-    @State private var opacity: Double = 0.3
-    
-    let breathTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-    let countdownTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-    
-    var body: some View {
-        ZStack {
-            Color.white
-                .edgesIgnoringSafeArea(.all)
-            
-            VStack(spacing: 40) {
-                // Timer Display Card
-                VStack(spacing: 8) {
-                    Text(timeString(from: remainingTime))
-                        .font(.system(size: 60, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundColor(.blue)
-                    
-                    Text("Remaining Time")
-                        .font(.title3)
-                        .foregroundColor(.gray)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color.blue.opacity(0.1))
-                )
-                .padding(.horizontal)
-                
-                // Breathing Animation
-                ZStack {
-                    // Background circles
-                    ForEach(0..<3) { index in
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                VStack(spacing: 16) {
+                    ZStack {
                         Circle()
-                            .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-                            .frame(width: CGFloat(200 + index * 30), height: CGFloat(200 + index * 30))
-                    }
-                    
-                    // Main breathing circle
-                    Circle()
-                        .fill(Color.blue.opacity(opacity))
-                        .frame(width: 200, height: 200)
-                        .scaleEffect(scale)
-                        .animation(.easeInOut(duration: 5), value: scale)
-                    
-                    VStack(spacing: 15) {
-                        Text(breathingPhase)
-                            .font(.largeTitle)
-                            .bold()
-                            .foregroundColor(.blue)
+                            .stroke(Color.blue.opacity(0.2), lineWidth: 15)
+                            .frame(width: min(geometry.size.width * 0.6, 200))
                         
-                        Text("\(phaseCountdown)")
-                            .font(.system(size: 48, weight: .bold))
-                            .foregroundColor(.blue)
+                        Circle()
+                            .trim(from: 0, to: CGFloat(viewModel.remainingTime / viewModel.exerciseDuration))
+                            .stroke(
+                                LinearGradient(colors: [.blue, .blue.opacity(0.7)],
+                                               startPoint: .top,
+                                               endPoint: .bottom),
+                                style: StrokeStyle(lineWidth: 15, lineCap: .round)
+                            )
+                            .frame(width: min(geometry.size.width * 0.6, 200))
+                            .rotationEffect(.degrees(-90))
+                        
+                        VStack(spacing: 4) {
+                            Text(timeString(from: viewModel.remainingTime))
+                                .font(.system(size: 44, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                            
+                            Text("Remaining")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    HStack(spacing: 16) {
+                        StatSquare(title: "Blinks", value: "\(viewModel.blinkCount)", icon: "eye.fill")
+                        StatSquare(title: "Twitches", value: "\(viewModel.eyebrowTwitchCount)", icon: "eye.trianglebadge.exclamationmark.fill")
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 30)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
+                )
                 
-                // Stop Button
-                Button(action: {
-                    dismiss()
-                }) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "stop.circle.fill")
-                        Text("Stop Exercise")
+                VStack(spacing: 24) {
+                    Text("Follow the glowing orb with your eyes only")
+                        .font(.title3)
+                        .bold()
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 30)
+                    
+                    ZStack {
+                        ZStack {
+                            ForEach(0..<3) { i in
+                                Circle()
+                                    .fill(Color.white.opacity(0.3 - Double(i) * 0.1))
+                                    .frame(width: 50 + CGFloat(i * 10), height: 50 + CGFloat(i * 10))
+                                    .blur(radius: CGFloat(i * 2))
+                            }
+                            
+                            Circle()
+                                .fill(
+                                    LinearGradient(colors: [.white, .blue.opacity(0.7)],
+                                                 startPoint: .topLeading,
+                                                 endPoint: .bottomTrailing)
+                                )
+                                .frame(width: 40, height: 40)
+                                .shadow(color: .white.opacity(0.5), radius: 10)
+                        }
+                        .offset(x: targetPosition.x, y: targetPosition.y)
+                        .animation(.easeInOut(duration: 2), value: targetPosition)
                     }
-                    .font(.title3)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .background(Color.red)
-                    .cornerRadius(15)
-                }
-                .padding(.horizontal)
-            }
-            .padding(.vertical, 40)
-        }
-        .onAppear {
-            startBreathing()
-        }
-        .onReceive(breathTimer) { _ in
-            if isBreathing {
-                if phaseCountdown > 0 {
-                    phaseCountdown -= 1
-                } else {
-                    phaseCountdown = 5 // Reset countdown
-                    if breathingPhase == "Inhale" {
-                        breathingPhase = "Exhale"
-                        scale = 1.0
-                        opacity = 0.3
-                    } else {
-                        breathingPhase = "Inhale"
-                        scale = 1.5
-                        opacity = 0.7
+                    .frame(maxWidth: .infinity, maxHeight: geometry.size.height * 0.4)
+                    .onAppear {
+                        startOrbMovement(in: geometry)
                     }
+                    Spacer()
+                    
+                    Button(action: { viewModel.stopExercise() }) {
+                        Label("Stop Exercise", systemImage: "xmark.circle.fill")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                LinearGradient(colors: [.red, .red.opacity(0.8)],
+                                               startPoint: .leading,
+                                               endPoint: .trailing)
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                            )
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 30)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(
+                    LinearGradient(colors: [.blue.opacity(0.7), .blue],
+                                   startPoint: .top,
+                                   endPoint: .bottom)
+                )
             }
-        }
-        .onReceive(countdownTimer) { _ in
-            if remainingTime > 0 {
-                remainingTime -= 1
-            } else {
-                dismiss()
-            }
+            .ignoresSafeArea(edges: .bottom)
         }
     }
     
@@ -673,211 +635,525 @@ struct BreathingExerciseView: View {
         return String(format: "%02d:%02d", minutes, seconds)
     }
     
-    private func startBreathing() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            isBreathing = true
-            breathingPhase = "Inhale"
-            scale = 1.5
-            opacity = 0.7
-            phaseCountdown = 5
+    private func startOrbMovement(in geometry: GeometryProxy) {
+        let maxX = geometry.size.width * 0.3
+        let maxY = geometry.size.height * 0.15
+        
+        weak var weakViewModel = viewModel
+        
+        Task { @MainActor in
+            while true {
+                guard let viewModel = weakViewModel, viewModel.isExerciseActive else {
+                    break
+                }
+                
+                let randomX = CGFloat.random(in: -maxX...maxX)
+                let randomY = CGFloat.random(in: -maxY...maxY)
+                
+                withAnimation(.easeInOut(duration: 2)) {
+                    targetPosition = CGPoint(x: randomX, y: randomY)
+                }
+                
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
         }
     }
 }
 
-// Your imports remain the same
 
-struct EyePalmingView: View {
-        @Environment(\.dismiss) private var dismiss
-        @State private var remainingTime: TimeInterval = 53 // Total duration
-        @State private var currentStep = 0
-        @State private var handPosition = CGPoint(x: UIScreen.main.bounds.width / 2, y: 200)
-        @State private var isRubbing = false
-        @State private var showWarmth = false
-        @State private var handScale: CGFloat = 1.0
-        @State private var handRotation: Double = 0
-        
-        let steps = [
-            (title: "Rub your palms together", duration: 20, icon: "hands.sparkles.fill"),
-            (title: "Feel the warmth in your palms", duration: 3, icon: "flame.fill"),
-            (title: "Cup your palms, place over eyes", duration: 5, icon: "hand.raised.fill"),
-            (title: "Keep eyes closed in darkness", duration: 5, icon: "eye.slash.fill"),
-            (title: "Breathe deeply and relax", duration: 20, icon: "lungs.fill")
-        ]
-        
-        let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-        
-        var body: some View {
-            GeometryReader { geometry in
-                ZStack {
-                    Color(UIColor.systemBackground).edgesIgnoringSafeArea(.all)
-                    
-                    VStack(spacing: 20) {
-                        // Timer Display
-                        ZStack {
-                            Circle()
-                                .stroke(Color.blue.opacity(0.2), lineWidth: 12)
-                                .frame(width: 150, height: 150)
-                            
-                            Circle()
-                                .trim(from: 0, to: remainingTime / 53)
-                                .stroke(Color.blue, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                                .frame(width: 150, height: 150)
-                                .rotationEffect(.degrees(-90))
-                            
-                            VStack(spacing: 5) {
-                                Text(timeString(from: remainingTime))
-                                    .font(.system(size: 36, weight: .bold, design: .rounded))
-                                    .monospacedDigit()
-                            }
-                        }
-                        .padding(.top, 20)
-                        
-                        // Animation Area
-                        ZStack {
-                            // Face outline
-                            Circle()
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 2)
-                                .frame(width: 140, height: 140)
-                            
-                            // Eyes
-                            HStack(spacing: 40) {
-                                Circle()
-                                    .fill(Color.blue.opacity(0.7))
-                                    .frame(width: 15, height: 15)
-                                
-                                Circle()
-                                    .fill(Color.blue.opacity(0.7))
-                                    .frame(width: 15, height: 15)
-                            }
-                            
-                            // Hands Animation
-                            Group {
-                                if currentStep < 3 {
-                                    // Left hand
-                                    Image(systemName: "hand.raised.fill")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 80)
-                                        .foregroundColor(.blue)
-                                        .offset(x: isRubbing ? -50 : -40, y: handPosition.y)
-                                        .rotationEffect(.degrees(isRubbing ? -15 : -30))
-                                        .scaleEffect(handScale)
-                                    
-                                    // Right hand
-                                    Image(systemName: "hand.raised.fill")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 80)
-                                        .foregroundColor(.blue)
-                                        .offset(x: isRubbing ? 50 : 40, y: handPosition.y)
-                                        .rotationEffect(.degrees(isRubbing ? 15 : 30))
-                                        .scaleEffect(handScale)
-                                }
-                            }
-                            .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: isRubbing)
-                            
-                            // Warmth effect
-                            if showWarmth {
-                                ForEach(0..<3) { index in
-                                    Circle()
-                                        .fill(Color.red.opacity(0.2))
-                                        .frame(width: CGFloat(80 + index * 20))
-                                        .scaleEffect(showWarmth ? 1.2 : 1.0)
-                                        .animation(.easeInOut(duration: 1.0).repeatForever(), value: showWarmth)
-                                }
-                            }
-                        }
-                        .frame(height: 200)
-                        
-                        // Current Instruction
-                        VStack(spacing: 10) {
-                            Image(systemName: steps[currentStep].icon)
-                                .font(.title)
-                                .foregroundColor(.blue)
-                            
-                            Text(steps[currentStep].title)
-                                .font(.title3)
-                                .bold()
-                                .multilineTextAlignment(.center)
-                                .foregroundColor(.primary)
-                            
-                            Text("\(Int(getStepRemainingTime()))s remaining")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(15)
-                        
-                        // Progress Dots
-                        HStack(spacing: 8) {
-                            ForEach(0..<steps.count) { index in
-                                Circle()
-                                    .fill(currentStep == index ? Color.blue : Color.gray.opacity(0.3))
-                                    .frame(width: 8, height: 8)
-                            }
-                        }
-                        
-                        Spacer()
-                        
-                        // Stop Button
-                        Button(action: { dismiss() }) {
-                            HStack {
-                                Image(systemName: "xmark.circle.fill")
-                                Text("End Exercise")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 15)
-                            .background(Color.red.gradient)
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, 30)
-                    }
-                    .padding(.horizontal)
-                }
+struct StatSquare: View {
+    let title: String
+    let value: String
+    let icon: String
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.blue.opacity(0.1))
+                    .frame(width: 56, height: 56)
+                
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(.blue)
             }
-            .onAppear {
-                startStepAnimation()
-            }
-            .onReceive(timer) { _ in
-                if remainingTime > 0 {
-                    remainingTime -= 1
-                    updateStep()
-                } else {
-                    dismiss()
+            
+            Text(value)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+            
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+
+@MainActor
+class BreathingViewModel: ObservableObject {
+    @Published var isBreathing = false
+    @Published var breathingPhase = "Prepare"
+    @Published var remainingTime: TimeInterval = 300
+    @Published var progress: CGFloat = 1.0
+    @Published var scale: CGFloat = 1.0
+    
+    private var breathingTimer: Timer?
+    
+    func startBreathing() {
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await MainActor.run {
+                breathingPhase = "Inhale"
+                withAnimation(.easeInOut(duration: 4)) {
+                    scale = 1.5
                 }
+                startBreathingCycle()
             }
         }
+    }
     
-    private func startStepAnimation() {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                switch currentStep {
-                case 0: // Rubbing palms
-                    isRubbing = true
-                    handPosition.y = 30
-                    handScale = 1.1
-                    showWarmth = false
-                case 1: // Feel warmth
-                    isRubbing = false
-                    showWarmth = true
-                    handPosition.y = 20
-                    handScale = 1.0
-                case 2: // Place over eyes
-                    showWarmth = false
-                    handPosition.y = 0
-                    handScale = 1.2
-                case 3, 4: // Keep closed and relax
-                    handPosition.y = 0
-                    handScale = 1.2
+    private func startBreathingCycle() {
+        breathingTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
+            Task { @MainActor in
+                switch self.breathingPhase {
+                case "Inhale":
+                    self.breathingPhase = "Hold"
+                    self.scale = 1.5
+                case "Hold":
+                    self.breathingPhase = "Exhale"
+                    withAnimation(.easeInOut(duration: 4)) {
+                        self.scale = 1.0
+                    }
+                case "Exhale":
+                    self.breathingPhase = "Inhale"
+                    withAnimation(.easeInOut(duration: 4)) {
+                        self.scale = 1.5
+                    }
                 default:
                     break
                 }
+                
+                if self.remainingTime <= 0 {
+                    self.breathingTimer?.invalidate()
+                    self.breathingTimer = nil
+                }
             }
         }
+    }
+    
+    func updateTimer() {
+        if remainingTime > 0 {
+            remainingTime -= 1
+            progress = remainingTime / 300
+        }
+    }
+    
+    func stopBreathing() {
+        breathingTimer?.invalidate()
+        breathingTimer = nil
+    }
+}
+
+
+struct BreathingExerciseView: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var viewModel = BreathingViewModel()
+    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                LinearGradient(colors: [.blue.opacity(0.1), .white],
+                             startPoint: .top,
+                             endPoint: .bottom)
+                    .edgesIgnoringSafeArea(.all)
+                
+                VStack(spacing: 30) {
+                    VStack(spacing: 8) {
+                        Text(timeString(from: viewModel.remainingTime))
+                            .font(.system(size: 44, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                        
+                        Text("Remaining Time")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    .padding(.top, 40)
+                    
+                    ZStack {
+                        Circle()
+                            .stroke(Color.blue.opacity(0.2), lineWidth: 15)
+                            .frame(width: min(geometry.size.width * 0.7, 300))
+                        
+                        Circle()
+                            .trim(from: 0, to: viewModel.progress)
+                            .stroke(
+                                LinearGradient(colors: [.blue, .blue.opacity(0.7)],
+                                             startPoint: .top,
+                                             endPoint: .bottom),
+                                style: StrokeStyle(lineWidth: 15, lineCap: .round)
+                            )
+                            .frame(width: min(geometry.size.width * 0.7, 300))
+                            .rotationEffect(.degrees(-90))
+                        
+                        Circle()
+                            .fill(Color.blue.opacity(0.3))
+                            .frame(width: min(geometry.size.width * 0.5, 200))
+                            .scaleEffect(viewModel.scale)
+                            .animation(.easeInOut(duration: viewModel.breathingPhase == "Inhale" ? 4 : 4), value: viewModel.scale)
+                        
+                        Text(viewModel.breathingPhase)
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundColor(.blue)
+                    }
+                    .frame(height: min(geometry.size.width * 0.8, 350))
+                    
+                    VStack(spacing: 12) {
+                        Text(breathingInstructions)
+                            .font(.title3)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white.opacity(0.8))
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .padding(.horizontal)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        viewModel.stopBreathing()
+                        dismiss()
+                    }) {
+                        Label("End Exercise", systemImage: "xmark.circle.fill")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                LinearGradient(colors: [.red, .red.opacity(0.8)],
+                                             startPoint: .leading,
+                                             endPoint: .trailing)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 30)
+                }
+            }
+        }
+        .onAppear {
+            viewModel.startBreathing()
+        }
+        .onReceive(timer) { _ in
+            viewModel.updateTimer()
+            if viewModel.remainingTime <= 0 {
+                dismiss()
+            }
+        }
+        .navigationTitle("Deep Breathing")
+        .navigationBarTitleDisplayMode(.inline)
+
+    }
+    
+    private var breathingInstructions: String {
+        switch viewModel.breathingPhase {
+        case "Prepare":
+            return "Get ready to start your breathing exercise"
+        case "Inhale":
+            return "Breathe in slowly through your nose"
+        case "Hold":
+            return "Hold your breath"
+        case "Exhale":
+            return "Breathe out slowly through your mouth"
+        default:
+            return ""
+        }
+    }
+    
+    private func timeString(from timeInterval: TimeInterval) -> String {
+        let minutes = Int(timeInterval) / 60
+        let seconds = Int(timeInterval) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+}
+
+struct EyePalmingView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var remainingTime: TimeInterval = 53 // Total duration
+    @State private var currentStep = 0
+    @State private var isRubbing = false
+    @State private var showWarmth = false
+    @State private var showHandsOverEyes = false
+    @State private var showEyesClosed = false
+    @State private var showBreathing = false
+    
+    let steps = [
+        (title: "Rub your palms together", duration: 20, icon: "hands.sparkles.fill"),
+        (title: "Feel the warmth in your palms", duration: 3, icon: "flame.fill"),
+        (title: "Cup your palms, place over eyes", duration: 5, icon: "hand.raised.fill"),
+        (title: "Keep eyes closed in darkness", duration: 5, icon: "eye.slash.fill"),
+        (title: "Breathe deeply and relax", duration: 20, icon: "lungs.fill")
+    ]
+    
+    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color(UIColor.systemBackground).edgesIgnoringSafeArea(.all)
+                
+                VStack(spacing: 20) {
+                    // Timer Display
+                    ZStack {
+                        Circle()
+                            .stroke(Color.blue.opacity(0.2), lineWidth: 12)
+                            .frame(width: 150, height: 150)
+                        
+                        Circle()
+                            .trim(from: 0, to: remainingTime / 53)
+                            .stroke(Color.blue, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                            .frame(width: 150, height: 150)
+                            .rotationEffect(.degrees(-90))
+                        
+                        VStack(spacing: 5) {
+                            Text(timeString(from: remainingTime))
+                                .font(.system(size: 36, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                        }
+                    }
+                    .padding(.top, 20)
+                    
+                    // Animation Area
+                    ZStack {
+                        // Step 1: Rubbing Hands
+                        if currentStep == 0 {
+                            HStack(spacing: 20) {
+                                Image(systemName: "hand.raised.fill")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 80)
+                                    .foregroundColor(.blue)
+                                    .offset(x: isRubbing ? -10 : 10, y: 0)
+                                    .rotationEffect(.degrees(isRubbing ? -15 : 15))
+                                
+                                Image(systemName: "hand.raised.fill")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 80)
+                                    .foregroundColor(.blue)
+                                    .offset(x: isRubbing ? 10 : -10, y: 0)
+                                    .rotationEffect(.degrees(isRubbing ? 15 : -15))
+                            }
+                            .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: isRubbing)
+                        }
+                        
+                        // Step 2: Feel Warmth
+                        if currentStep == 1 {
+                            ZStack {
+                                Image(systemName: "hand.raised.fill")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 80)
+                                    .foregroundColor(.blue)
+                                
+                                if showWarmth {
+                                    ForEach(0..<3) { index in
+                                        Circle()
+                                            .fill(Color.red.opacity(0.2))
+                                            .frame(width: CGFloat(80 + index * 20))
+                                            .scaleEffect(showWarmth ? 1.2 : 1.0)
+                                            .animation(.easeInOut(duration: 1.0).repeatForever(), value: showWarmth)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Step 3: Hands Over Eyes
+                        if currentStep == 2 {
+                            ZStack {
+                                // Face
+                                Circle()
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(width: 150, height: 150)
+                                
+                                // Eyes
+                                HStack(spacing: 40) {
+                                    Circle()
+                                        .fill(Color.blue.opacity(0.7))
+                                        .frame(width: 15, height: 15)
+                                    
+                                    Circle()
+                                        .fill(Color.blue.opacity(0.7))
+                                        .frame(width: 15, height: 15)
+                                }
+                                
+                                // Hands
+                                HStack(spacing: 20) {
+                                    Image(systemName: "hand.raised.fill")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 80)
+                                        .foregroundColor(.blue)
+                                        .offset(y: showHandsOverEyes ? -50 : -30)
+                                        .rotationEffect(.degrees(-15))
+                                    
+                                    Image(systemName: "hand.raised.fill")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 80)
+                                        .foregroundColor(.blue)
+                                        .offset(y: showHandsOverEyes ? -50 : -30)
+                                        .rotationEffect(.degrees(15))
+                                }
+                                .animation(.easeInOut(duration: 0.5), value: showHandsOverEyes)
+                            }
+                        }
+                        
+                        // Step 4: Eyes Closed
+                        if currentStep == 3 {
+                            ZStack {
+                                // Face
+                                Circle()
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(width: 150, height: 150)
+                                
+                                // Closed Eyes
+                                HStack(spacing: 40) {
+                                    Capsule()
+                                        .fill(Color.blue.opacity(0.7))
+                                        .frame(width: 30, height: 5)
+                                    
+                                    Capsule()
+                                        .fill(Color.blue.opacity(0.7))
+                                        .frame(width: 30, height: 5)
+                                }
+                            }
+                        }
+                        
+                        // Step 5: Breathing
+                        if currentStep == 4 {
+                            ZStack {
+                                // Breathing Animation
+                                Circle()
+                                    .fill(Color.blue.opacity(0.2))
+                                    .frame(width: showBreathing ? 200 : 150, height: showBreathing ? 200 : 150)
+                                    .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: showBreathing)
+                                
+                                Image(systemName: "lungs.fill")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 80)
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                    .frame(height: 200)
+                    
+                    // Current Instruction
+                    VStack(spacing: 10) {
+                        Image(systemName: steps[currentStep].icon)
+                            .font(.title)
+                            .foregroundColor(.blue)
+                        
+                        Text(steps[currentStep].title)
+                            .font(.title3)
+                            .bold()
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.primary)
+                        
+                        Text("\(Int(getStepRemainingTime()))s remaining")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(15)
+                    
+                    // Progress Dots
+                    HStack(spacing: 8) {
+                        ForEach(0..<steps.count) { index in
+                            Circle()
+                                .fill(currentStep == index ? Color.blue : Color.gray.opacity(0.3))
+                                .frame(width: 8, height: 8)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Stop Button
+                    Button(action: { dismiss() }) {
+                        HStack {
+                            Image(systemName: "xmark.circle.fill")
+                            Text("End Exercise")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .background(Color.red.gradient)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 30)
+                }
+                .padding(.horizontal)
+            }
+        }
+        .onAppear {
+            startStepAnimation()
+        }
+        .onReceive(timer) { _ in
+            if remainingTime > 0 {
+                remainingTime -= 1
+                updateStep()
+            } else {
+                dismiss()
+            }
+        }
+        .navigationTitle("Eye Palming")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private func startStepAnimation() {
+        withAnimation(.easeInOut(duration: 0.5)) {
+            switch currentStep {
+            case 0: // Rubbing palms
+                isRubbing = true
+                showWarmth = false
+                showHandsOverEyes = false
+                showEyesClosed = false
+                showBreathing = false
+            case 1: // Feel warmth
+                isRubbing = false
+                showWarmth = true
+                showHandsOverEyes = false
+                showEyesClosed = false
+                showBreathing = false
+            case 2: // Place over eyes
+                showWarmth = false
+                showHandsOverEyes = true
+                showEyesClosed = false
+                showBreathing = false
+            case 3: // Keep closed
+                showHandsOverEyes = false
+                showEyesClosed = true
+                showBreathing = false
+            case 4: // Breathe deeply
+                showEyesClosed = false
+                showBreathing = true
+            default:
+                break
+            }
+        }
+    }
     
     private func getStepRemainingTime() -> TimeInterval {
         let totalTimeForPreviousSteps = steps[0..<currentStep].reduce(0) { $0 + $1.duration }
@@ -894,7 +1170,6 @@ struct EyePalmingView: View {
             startStepAnimation()
         }
     }
-
     
     private func timeString(from timeInterval: TimeInterval) -> String {
         let minutes = Int(timeInterval) / 60
@@ -946,7 +1221,6 @@ struct TwentyRuleView: View {
                 )
                 .padding(.horizontal)
                 
-                // Camera Preview and Exercise Area
                 VStack(spacing: 20) {
                     ZStack {
                         if isCameraRunning {
@@ -975,7 +1249,6 @@ struct TwentyRuleView: View {
                             }
                         }
                         
-                        // Exercise direction indicators
                         if showExerciseGuide {
                             switch currentPhase {
                             case "Look up":
@@ -1004,7 +1277,6 @@ struct TwentyRuleView: View {
                         }
                     }
                     
-                    // Exercise Instructions
                     Text(currentPhase)
                         .font(.title2)
                         .bold()
@@ -1015,7 +1287,6 @@ struct TwentyRuleView: View {
                 
                 Spacer()
                 
-                // Stop Button
                 Button(action: {
                     stopExercise()
                 }) {
@@ -1037,7 +1308,6 @@ struct TwentyRuleView: View {
         .onReceive(timer) { _ in
             if isTimerActive && remainingTime > 0 {
                 remainingTime -= 1
-                // Change exercise every 4 seconds
                 if showExerciseGuide {
                     currentPhase = exercises[Int((20 - remainingTime) / 4) % exercises.count]
                 }
@@ -1045,6 +1315,8 @@ struct TwentyRuleView: View {
                 stopExercise()
             }
         }
+        .navigationTitle("20-20-20 Rule")
+        .navigationBarTitleDisplayMode(.inline)
     }
     
     private func timeString(from timeInterval: TimeInterval) -> String {
@@ -1073,7 +1345,6 @@ struct TwentyRuleView: View {
     private func startExercise() {
         DispatchQueue.main.async {
             isCameraRunning = true
-            // Add a delay before showing the guide to ensure camera is running
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 isTimerActive = true
                 showExerciseGuide = true
@@ -1090,10 +1361,7 @@ struct TwentyRuleView: View {
     }
 }
 
-// Add CameraView for handling camera preview
-@preconcurrency import AVFoundation
 
-// Your imports remain the same
 struct CameraView: UIViewRepresentable {
     @Binding var isActive: Bool
     
@@ -1186,8 +1454,6 @@ struct CameraView: UIViewRepresentable {
     }
 }
 
-// Your imports remain the same
-
 struct RelaxationView: View {
     let exercises = [
             RelaxationExercise(name: "Deep Breathing", description: "Take slow, deep breaths to reduce stress.", duration: 300),
@@ -1199,7 +1465,6 @@ struct RelaxationView: View {
             NavigationStack {
                 List(exercises) { exercise in
                     NavigationLink {
-                        // Exercise views based on exercise name
                         Group {
                             switch exercise.name {
                             case "Deep Breathing":
@@ -1257,7 +1522,6 @@ struct RelaxationView: View {
     }
 }
 
-// Rest of your code remains the same
 struct EducationView: View {
     let articles = [
         EducationalContent(title: "What is Blepharospasm?", description: "Learn about the causes and treatments for blepharospasm.", url: "https://en.wikipedia.org/wiki/Blepharospasm"),

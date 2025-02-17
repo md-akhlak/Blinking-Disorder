@@ -16,8 +16,8 @@ let package = Package(
         .iOSApplication(
             name: "Blinking Disorder",
             targets: ["AppModule"],
-            bundleIdentifier: "akhlak.blicnking",
-            teamIdentifier: "78WNV3787M",
+            bundleIdentifier: "variable.akhlak.learnsathi",
+            teamIdentifier: "G35LFCGGKB",
             displayVersion: "1.0",
             bundleVersion: "1",
             appIcon: .placeholder(icon: .coffee),

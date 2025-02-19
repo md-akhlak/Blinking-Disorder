@@ -33,12 +33,6 @@ struct ContentView: View {
                         Label("Learn", systemImage: "book")
                     }
                     .opacity(viewModel.isExerciseActive ? 0 : 1)
-                
-                SettingsView(viewModel: viewModel)
-                    .tabItem {
-                        Label("Settings", systemImage: "gear")
-                    }
-                    .opacity(viewModel.isExerciseActive ? 0 : 1)
             }
             .tint(.blue)
         }

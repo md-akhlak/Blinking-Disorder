@@ -13,7 +13,12 @@ struct RelaxationView: View {
     let exercises = [
             RelaxationExercise(name: "Deep Breathing", description: "Take slow, deep breaths to reduce stress.", duration: 300),
             RelaxationExercise(name: "Eye Palming", description: "Rub your palms together and place them over your eyes.", duration: 180),
-            RelaxationExercise(name: "20-20-20 Rule", description: "Every 20 minutes, look at something 20 feet away for 20 seconds.", duration: 20)
+            RelaxationExercise(name: "20-20-20 Rule", description: "Every 20 minutes, look at something 20 feet away for 20 seconds.", duration: 20),
+            // Add new exercises
+            RelaxationExercise(name: "Gaze Pattern", description: "Follow a specific pattern with your eyes to reduce strain.", duration: 180),
+            RelaxationExercise(name: "Head Motions", description: "Gentle head movements to relax neck and eye muscles.", duration: 240),
+            RelaxationExercise(name: "Rhombus Tracking", description: "Track moving points in a rhombus pattern.", duration: 180),
+            RelaxationExercise(name: "Eye Massage", description: "Gentle massage around eyes and eyebrows to relieve tension.", duration: 300)
         ]
         
         var body: some View {
@@ -30,6 +35,18 @@ struct RelaxationView: View {
                                     .toolbar(.hidden, for: .tabBar)
                             case "20-20-20 Rule":
                                 TwentyRuleView()
+                                    .toolbar(.hidden, for: .tabBar)
+                            case "Gaze Pattern":
+                                GazePatternView()
+                                    .toolbar(.hidden, for: .tabBar)
+                            case "Head Motions":
+                                HeadMotionsView()
+                                    .toolbar(.hidden, for: .tabBar)
+                            case "Rhombus Tracking":
+                                RhombusTrackingView()
+                                    .toolbar(.hidden, for: .tabBar)
+                            case "Eye Massage":
+                                EyeMassageView()
                                     .toolbar(.hidden, for: .tabBar)
                             default:
                                 EmptyView()
@@ -71,14 +88,19 @@ struct RelaxationView: View {
             return "hand.raised.fill"
         case "20-20-20 Rule":
             return "eye.fill"
+        case "Gaze Pattern":
+            return "eyes"
+        case "Head Motions":
+            return "arrow.up.and.down.and.arrow.left.and.right"
+        case "Rhombus Tracking":
+            return "diamond.fill"
+        case "Eye Massage":
+            return "hand.point.up.fill"
         default:
             return "questionmark.circle.fill"
         }
     }
 }
-
-
-
 
 @MainActor
 class BreathingViewModel: ObservableObject {
@@ -144,7 +166,6 @@ class BreathingViewModel: ObservableObject {
         breathingTimer = nil
     }
 }
-
 
 struct BreathingExerciseView: View {
     @Environment(\.dismiss) private var dismiss
@@ -647,7 +668,6 @@ struct EyePalmingView: View {
     }
 }
 
-
 struct TwentyRuleView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var remainingTime: TimeInterval = 20
@@ -853,15 +873,3 @@ struct TwentyRuleView: View {
         dismiss()
     }
 }
-
-// Remove CameraView struct entirely as it's no longer needed
-
-
-
-
-
-
-
-
-
-

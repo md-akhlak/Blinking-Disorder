@@ -268,7 +268,7 @@ struct ExerciseContentView: View {
                     break
                 }
                 
-                let randomX = CGFloat.random(in: -maxX...maxX)
+                let randomX = CGFloat.random (in: -maxX...maxX)
                 let randomY = CGFloat.random(in: -maxY...maxY)
                 
                 withAnimation(.easeInOut(duration: 2)) {

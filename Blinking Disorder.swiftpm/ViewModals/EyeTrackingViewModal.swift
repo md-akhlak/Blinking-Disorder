@@ -201,7 +201,147 @@ class EyeTrackingViewModel: NSObject, ObservableObject, ARSessionDelegate {
     
 }
 
+enum GazePattern {
+    case horizontal
+    case vertical
+    case diagonal
+    case circular
+    case infinity
+    
+    var points: [CGPoint] {
+        switch self {
+        case .horizontal:
+            return [
+                CGPoint(x: -0.8, y: 0),
+                CGPoint(x: 0.8, y: 0),
+                CGPoint(x: -0.8, y: 0)
+            ]
+        case .vertical:
+            return [
+                CGPoint(x: 0, y: -0.8),
+                CGPoint(x: 0, y: 0.8),
+                CGPoint(x: 0, y: -0.8)
+            ]
+        case .diagonal:
+            return [
+                CGPoint(x: -0.8, y: -0.8),
+                CGPoint(x: 0.8, y: 0.8),
+                CGPoint(x: -0.8, y: 0.8),
+                CGPoint(x: 0.8, y: -0.8),
+                CGPoint(x: -0.8, y: -0.8)
+            ]
+        case .circular:
+            var points: [CGPoint] = []
+            let radius: CGFloat = 0.8
+            for i in 0...360 {
+                let angle = Double(i) * .pi / 180
+                let x = radius * cos(angle)
+                let y = radius * sin(angle)
+                points.append(CGPoint(x: x, y: y))
+            }
+            return points
+        case .infinity:
+            var points: [CGPoint] = []
+            for i in 0...360 {
+                let angle = Double(i) * .pi / 180
+                let x = 0.8 * cos(angle)
+                let y = 0.8 * sin(2 * angle) / 2
+                points.append(CGPoint(x: x, y: y))
+            }
+            return points
+        }
+    }
+    
+    var name: String {
+        switch self {
+        case .horizontal: return "Horizontal"
+        case .vertical: return "Vertical"
+        case .diagonal: return "Diagonal"
+        case .circular: return "Circular"
+        case .infinity: return "Figure 8"
+        }
+    }
+    
+    var systemImage: String {
+        switch self {
+        case .horizontal: return "arrow.left.and.right"
+        case .vertical: return "arrow.up.and.down"
+        case .diagonal: return "arrow.up.right.and.arrow.down.left"
+        case .circular: return "circle"
+        case .infinity: return "infinity"
+        }
+    }
+}
 
+struct OrbView: View {
+    let targetPosition: CGPoint
+    let pattern: GazePattern
+    @State private var currentPatternIndex: Int = 0
+    @State private var isAnimating: Bool = false
+    
+    var body: some View {
+        ZStack {
+            // Pattern Guide
+            PatternGuideView(pattern: pattern)
+                .stroke(Color.blue.opacity(0.2), lineWidth: 2)
+                .frame(width: 200, height: 200)
+            
+            // Animated Orb
+            ZStack {
+                // Outer glow
+                ForEach(0..<3) { i in
+                    Circle()
+                        .fill(Color.blue.opacity(0.2 - Double(i) * 0.05))
+                        .frame(width: 60 + CGFloat(i * 15),
+                               height: 60 + CGFloat(i * 15))
+                        .blur(radius: CGFloat(i * 3))
+                }
+                
+                // Core orb
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.white, .blue],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 40, height: 40)
+                    .shadow(color: .blue.opacity(0.5), radius: 10)
+            }
+            .offset(x: targetPosition.x * 100, y: targetPosition.y * 100)
+        }
+    }
+}
+
+struct PatternGuideView: Shape {
+    let pattern: GazePattern
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let points = pattern.points
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let scale = min(rect.width, rect.height) / 2
+        
+        guard !points.isEmpty else { return path }
+        
+        let startPoint = CGPoint(
+            x: center.x + points[0].x * scale,
+            y: center.y + points[0].y * scale
+        )
+        path.move(to: startPoint)
+        
+        for point in points.dropFirst() {
+            let scaledPoint = CGPoint(
+                x: center.x + point.x * scale,
+                y: center.y + point.y * scale
+            )
+            path.addLine(to: scaledPoint)
+        }
+        
+        return path
+    }
+}
 
 // Add this new view to handle the exercise content
 struct ExerciseContentView: View {
@@ -209,197 +349,243 @@ struct ExerciseContentView: View {
     @Binding var targetPosition: CGPoint
     @Binding var isAnimating: Bool
     let synthesizer: AVSpeechSynthesizer
+    @Environment(\.dismiss) private var dismiss
+    @State private var currentPattern: GazePattern = .horizontal
     
     var body: some View {
         GeometryReader { geometry in
-            VStack(spacing: 0) {
-                ExerciseTimerView(viewModel: viewModel)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 30)
-                            .fill(Color(.systemBackground))
-                            .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-                    )
-                
-                ExerciseControlView(
-                    viewModel: viewModel,
-                    geometry: geometry,
-                    targetPosition: $targetPosition,
-                    isAnimating: $isAnimating
-                )
-            }
-            .ignoresSafeArea(edges: .bottom)
-            .onAppear {
-                startOrbMovement(in: geometry)
-                
-                // Initial voice guidance
-                let utterance = AVSpeechUtterance(string: "Eye tracking exercise. Follow the glowing orb with your eyes only.")
-                utterance.rate = 0.5
-                utterance.pitchMultiplier = 1.0
-                utterance.volume = 0.8
-                synthesizer.speak(utterance)
-            }
-            .onChange(of: viewModel.remainingTime) { newValue in
-                // Provide periodic voice updates
-                if newValue.truncatingRemainder(dividingBy: 10) == 0 && newValue > 0 {
-                    let utterance = AVSpeechUtterance(string: "\(Int(newValue)) seconds remaining")
-                    utterance.rate = 0.5
-                    utterance.volume = 0.8
-                    synthesizer.speak(utterance)
-                } else if newValue == 0 {
-                    let utterance = AVSpeechUtterance(string: "Exercise complete. Great job!")
-                    utterance.rate = 0.5
-                    utterance.volume = 0.8
-                    synthesizer.speak(utterance)
+            ScrollView {
+                ZStack {
+                    // Background gradient
+                    LinearGradient(colors: [.blue.opacity(0.1), .blue.opacity(0.2)],
+                                 startPoint: .top,
+                                 endPoint: .bottom)
+                        .ignoresSafeArea()
+                    
+                    VStack(spacing: 24) {
+                        // Timer and Stats Section
+                        VStack(spacing: 20) {
+                            // Timer View
+                            HStack {
+                                Label("\(Int(viewModel.remainingTime))s", systemImage: "timer")
+                                    .font(.title2.bold())
+                                    .foregroundStyle(.primary)
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .padding(.horizontal)
+                            
+                            // Stats Cards
+                            HStack(spacing: 16) {
+                                StatisticCard(
+                                    title: "Blinks",
+                                    value: viewModel.blinkCount,
+                                    icon: "eye.fill",
+                                    color: .blue
+                                )
+                                
+                                StatisticCard(
+                                    title: "Twitches",
+                                    value: viewModel.eyebrowTwitchCount,
+                                    icon: "eye.trianglebadge.exclamationmark.fill",
+                                    color: .orange
+                                )
+                            }
+                            .padding(.horizontal)
+                        }
+                        .padding(.top)
+                        
+                        // Exercise Area with Stop Button
+                        VStack(spacing: 16) {
+                            // Pattern Selection
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach([GazePattern.horizontal, .vertical, .diagonal, .circular, .infinity], id: \.name) { pattern in
+                                        Button(action: { currentPattern = pattern }) {
+                                            VStack {
+                                                Image(systemName: pattern.systemImage)
+                                                    .font(.title2)
+                                                Text(pattern.name)
+                                                    .font(.caption)
+                                            }
+                                            .padding()
+                                            .background(currentPattern == pattern ? Color.blue.opacity(0.2) : Color.clear)
+                                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        }
+                                        .foregroundColor(.primary)
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                            
+                            // Exercise Area
+                            ZStack {
+                                // Exercise boundary indicator
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color.blue.opacity(0.2), lineWidth: 2)
+                                    .background(Color.white.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                                
+                                VStack {
+                                    Text("Follow the orb pattern")
+                                        .font(.headline)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.top)
+                                    
+                                    Spacer()
+                                    
+                                    ZStack {
+                                        OrbView(targetPosition: targetPosition, pattern: currentPattern)
+                                            .frame(maxWidth: .infinity, maxHeight: geometry.size.height * 0.4)
+                                        
+                                        // Eye Strain Warning Overlay
+                                        if viewModel.eyeStrainDetected {
+                                            EyeStrainWarningOverlay()
+                                                .transition(.opacity)
+                                        }
+                                    }
+                                    
+                                    Spacer()
+                                }
+                            }
+                            .frame(height: min(geometry.size.height * 0.5, 400))
+                            
+                            // Stop Exercise Button
+                            Button(action: { viewModel.stopExercise() }) {
+                                Label("Stop Exercise", systemImage: "xmark.circle.fill")
+                                    .font(.headline)
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(Color.red)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                            }
+                        }
+                        .padding(.horizontal)
+                        
+                        Spacer(minLength: 20)
+                    }
                 }
             }
+            .scrollDisabled(true)
+            .onAppear {
+                startOrbMovement(in: geometry)
+                provideInitialGuidance()
+            }
         }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Eye Exercise")
+                    .font(.headline)
+            }
+        }
+        .onChange(of: viewModel.remainingTime) { newValue in
+            handleTimeChange(newValue)
+        }
+        .ignoresSafeArea(.keyboard)
     }
     
     private func startOrbMovement(in geometry: GeometryProxy) {
-        let maxX = geometry.size.width * 0.3
-        let maxY = geometry.size.height * 0.15
-        
-        weak var weakViewModel = viewModel
+        let points = currentPattern.points
+        var currentIndex = 0
         
         Task { @MainActor in
             while true {
-                guard let viewModel = weakViewModel, viewModel.isExerciseActive else {
-                    break
-                }
+                guard viewModel.isExerciseActive else { break }
                 
-                let randomX = CGFloat.random (in: -maxX...maxX)
-                let randomY = CGFloat.random(in: -maxY...maxY)
-                
+                let point = points[currentIndex]
                 withAnimation(.easeInOut(duration: 2)) {
-                    targetPosition = CGPoint(x: randomX, y: randomY)
+                    targetPosition = point
                 }
                 
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-            }
-        }
-    }
-}
-
-
-
-// Add these supporting views
-struct ExerciseTimerView: View {
-    @ObservedObject var viewModel: EyeTrackingViewModel
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .stroke(Color.blue.opacity(0.2), lineWidth: 15)
-                    .frame(width: 150)
                 
-                Circle()
-                    .trim(from: 0, to: CGFloat(viewModel.remainingTime / viewModel.exerciseDuration))
-                    .stroke(
-                        LinearGradient(colors: [.blue, .blue.opacity(0.7)],
-                                     startPoint: .top,
-                                     endPoint: .bottom),
-                        style: StrokeStyle(lineWidth: 15, lineCap: .round)
-                    )
-                    .frame(width: 150)
-                    .rotationEffect(.degrees(-90))
-                
-                VStack(spacing: 4) {
-                    Text(timeString(from: viewModel.remainingTime))
-                        .font(.system(size: 44, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                    
-                    Text("Remaining")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            
-            HStack(spacing: 16) {
-                StatSquare(title: "Blinks", value: "\(viewModel.blinkCount)", icon: "eye.fill")
-                StatSquare(title: "Twitches", value: "\(viewModel.eyebrowTwitchCount)", icon: "eye.trianglebadge.exclamationmark.fill")
+                currentIndex = (currentIndex + 1) % points.count
             }
         }
     }
     
-    private func timeString(from timeInterval: TimeInterval) -> String {
-        let minutes = Int(timeInterval) / 60
-        let seconds = Int(timeInterval) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
+    private func provideInitialGuidance() {
+        let utterance = AVSpeechUtterance(string: "Eye tracking exercise. Follow the glowing orb with your eyes only.")
+        utterance.rate = 0.5
+        utterance.pitchMultiplier = 1.0
+        utterance.volume = 0.8
+        synthesizer.speak(utterance)
+    }
+    
+    private func handleTimeChange(_ newValue: TimeInterval) {
+        if newValue.truncatingRemainder(dividingBy: 10) == 0 && newValue > 0 {
+            let utterance = AVSpeechUtterance(string: "\(Int(newValue)) seconds remaining")
+            utterance.rate = 0.5
+            utterance.volume = 0.8
+            synthesizer.speak(utterance)
+        } else if newValue == 0 {
+            let utterance = AVSpeechUtterance(string: "Exercise complete. Great job!")
+            utterance.rate = 0.5
+            utterance.volume = 0.8
+            synthesizer.speak(utterance)
+        }
     }
 }
 
-struct ExerciseControlView: View {
-    @ObservedObject var viewModel: EyeTrackingViewModel
-    let geometry: GeometryProxy
-    @Binding var targetPosition: CGPoint
-    @Binding var isAnimating: Bool
+struct StatisticCard: View {
+    let title: String
+    let value: Int
+    let icon: String
+    let color: Color
     
     var body: some View {
-        VStack(spacing: 24) {
-            Text("Follow the glowing orb with your eyes only")
-                .font(.title3)
-                .bold()
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .padding(.top, 30)
-            
-            ZStack {
-                OrbView(targetPosition: targetPosition)
-                    .frame(maxWidth: .infinity, maxHeight: geometry.size.height * 0.4)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: icon)
+                Text(title)
             }
+            .font(.subheadline)
+            .foregroundStyle(color)
             
-            Spacer()
-            
-            Button(action: { viewModel.stopExercise() }) {
-                Label("Stop Exercise", systemImage: "xmark.circle.fill")
+            Text("\(value)")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+}
+
+struct EyeStrainWarningOverlay: View {
+    var body: some View {
+        VStack {
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.largeTitle)
+                    .foregroundStyle(.orange)
+                
+                Text("Eye Strain Detected")
                     .font(.headline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        LinearGradient(colors: [.red, .red.opacity(0.8)],
-                                     startPoint: .leading,
-                                     endPoint: .trailing)
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                    )
+                    .multilineTextAlignment(.center)
+                
+                Text("Take a short break and blink naturally")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
-            .padding(.horizontal)
-            .padding(.bottom, 30)
+            .padding(24)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(.systemBackground))
+                    .shadow(radius: 10)
+            )
+            .padding()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            LinearGradient(colors: [.blue.opacity(0.7), .blue],
-                         startPoint: .top,
-                         endPoint: .bottom)
-        )
-    }
-}
-
-struct OrbView: View {
-    let targetPosition: CGPoint
-    
-    var body: some View {
-        ZStack {
-            ForEach(0..<3) { i in
-                Circle()
-                    .fill(Color.white.opacity(0.3 - Double(i) * 0.1))
-                    .frame(width: 50 + CGFloat(i * 10), height: 50 + CGFloat(i * 10))
-                    .blur(radius: CGFloat(i * 2))
-            }
-            
-            Circle()
-                .fill(
-                    LinearGradient(colors: [.white, .blue.opacity(0.7)],
-                                 startPoint: .topLeading,
-                                 endPoint: .bottomTrailing)
-                )
-                .frame(width: 40, height: 40)
-                .shadow(color: .white.opacity(0.5), radius: 10)
-        }
-        .offset(x: targetPosition.x, y: targetPosition.y)
-        .animation(.easeInOut(duration: 2), value: targetPosition)
+        .background(Color.black.opacity(0.3))
+        .animation(.easeInOut, value: true)
     }
 }
 

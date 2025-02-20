@@ -25,8 +25,8 @@ struct RhombusTrackingView: View {
                 
                 VStack(spacing: 30) {
                     // Timer View
-                    TimerView(remainingTime: remainingTime, totalTime: 180)
-                        .padding(.top, 40)
+//                    TimerView(remainingTime: remainingTime, totalTime: 180)
+//                        .padding(.top, 40)
                     
                     // Tracking Area
                     ZStack {

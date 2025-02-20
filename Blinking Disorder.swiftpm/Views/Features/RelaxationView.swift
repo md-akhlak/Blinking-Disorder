@@ -36,9 +36,7 @@ struct RelaxationView: View {
                             case "20-20-20 Rule":
                                 TwentyRuleView()
                                     .toolbar(.hidden, for: .tabBar)
-                            case "Gaze Pattern":
-                                GazePatternView()
-                                    .toolbar(.hidden, for: .tabBar)
+                            
                             case "Head Motions":
                                 HeadMotionsView()
                                     .toolbar(.hidden, for: .tabBar)

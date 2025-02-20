@@ -21,7 +21,6 @@ struct ContentView: View {
                         Label("Track", systemImage: "eye")
                     }
                     .opacity(viewModel.isExerciseActive ? 0 : 1)
-                
                 RelaxationView()
                     .tabItem {
                         Label("Relax", systemImage: "heart")

@@ -5,194 +5,224 @@
 //  Created by Akhlak iSDP on 18/02/25.
 //
 
-import Foundation
 import SwiftUI
 
+struct EducationContent: Identifiable {
+    let id = UUID()
+    let title: String
+    let description: String
+    let iconName: String
+    let category: Category
+    
+    enum Category: String {
+        case basics = "Basics"
+        case prevention = "Prevention"
+        case exercises = "Exercises"
+        case lifestyle = "Lifestyle"
+    }
+}
 
-struct EducationView: View {
-    // Educational content sections
-    let sections = [
-        EducationalSection(
-            title: "Understanding Blepharospasm",
-            content: [
-                ContentItem(
-                    title: "What is Blepharospasm?",
-                    description: "Blepharospasm is a condition characterized by involuntary muscle contractions and spasms of the eyelids. These spasms can cause excessive blinking, eye closure, and in severe cases, functional blindness. This condition typically affects both eyes and can significantly impact daily activities."
-                ),
-                ContentItem(
-                    title: "Causes and Risk Factors",
-                    description: "• Genetic predisposition\n• Brain chemical imbalances\n• Environmental factors\n• Eye irritation\n• Stress and fatigue\n• Certain medications\n• Neurological conditions"
-                ),
-                ContentItem(
-                    title: "Common Symptoms",
-                    description: "• Increased frequency of blinking\n• Uncontrollable eye closure\n• Eye irritation and dryness\n• Light sensitivity\n• Vision disturbances\n• Facial spasms\n• Difficulty keeping eyes open"
-                ),
-                ContentItem(
-                    title: "Treatment Options",
-                    description: "• Botulinum toxin injections\n• Oral medications\n• Stress management techniques\n• Eye exercises\n• Lifestyle modifications\n• Surgery (in severe cases)"
-                ),
-                ContentItem(
-                    title: "Living with Blepharospasm",
-                    description: "Managing blepharospasm involves a combination of medical treatment and lifestyle adjustments. Regular exercise, stress reduction, proper sleep, and avoiding triggers can help minimize symptoms. Support groups and professional counseling can also be beneficial for coping with the condition."
-                )
-            ]
+class EducationViewModel: ObservableObject {
+    @Published var selectedCategory: EducationContent.Category = .basics
+    
+    let educationalContent: [EducationContent] = [
+        // Basics
+        EducationContent(
+            title: "Understanding Eye Strain",
+            description: "Learn about digital eye strain, its causes, and how it affects your daily life.",
+            iconName: "eye.circle",
+            category: .basics
         ),
-        EducationalSection(
-            title: "Prevention and Management",
-            content: [
-                ContentItem(
-                    title: "Daily Eye Care",
-                    description: "• Take regular breaks from screens\n• Practice the 20-20-20 rule\n• Maintain good eye hygiene\n• Use proper lighting\n• Wear protective eyewear\n• Stay hydrated"
-                ),
-                ContentItem(
-                    title: "Lifestyle Recommendations",
-                    description: "• Maintain a regular sleep schedule\n• Practice stress-reduction techniques\n• Exercise regularly\n• Avoid eye strain\n• Follow a healthy diet\n• Limit caffeine intake"
-                )
-            ]
+        EducationContent(
+            title: "Common Symptoms",
+            description: "Identify the warning signs of digital eye strain and vision problems.",
+            iconName: "exclamationmark.circle",
+            category: .basics
+        ),
+        
+        // Prevention
+        EducationContent(
+            title: "20-20-20 Rule",
+            description: "Every 20 minutes, look at something 20 feet away for 20 seconds.",
+            iconName: "timer",
+            category: .prevention
+        ),
+        EducationContent(
+            title: "Proper Lighting",
+            description: "Optimize your workspace lighting to reduce eye strain.",
+            iconName: "lightbulb",
+            category: .prevention
+        ),
+        
+        // Exercises
+        EducationContent(
+            title: "Eye Yoga",
+            description: "Simple exercises to relax and strengthen your eye muscles.",
+            iconName: "figure.mind.and.body",
+            category: .exercises
+        ),
+        EducationContent(
+            title: "Blinking Exercises",
+            description: "Learn proper blinking techniques to keep your eyes moisturized.",
+            iconName: "eye",
+            category: .exercises
+        ),
+        
+        // Lifestyle
+        EducationContent(
+            title: "Screen Time Management",
+            description: "Tips for managing your daily screen time effectively.",
+            iconName: "iphone",
+            category: .lifestyle
+        ),
+        EducationContent(
+            title: "Healthy Habits",
+            description: "Develop daily habits that promote better eye health.",
+            iconName: "heart",
+            category: .lifestyle
         )
     ]
     
+    func filteredContent() -> [EducationContent] {
+        educationalContent.filter { $0.category == selectedCategory }
+    }
+}
+
+struct EducationView: View {
+    @StateObject private var viewModel = EducationViewModel()
+    
     var body: some View {
-            NavigationStack {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Category Picker
+                Picker("Category", selection: $viewModel.selectedCategory) {
+                    Text("Basics").tag(EducationContent.Category.basics)
+                    Text("Prevention").tag(EducationContent.Category.prevention)
+                    Text("Exercises").tag(EducationContent.Category.exercises)
+                    Text("Lifestyle").tag(EducationContent.Category.lifestyle)
+                }
+                .pickerStyle(.segmented)
+                .padding()
+                
                 ScrollView {
-                    VStack(spacing: 25) {
-                        // Header Image
-                        Image(systemName: "eye.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.blue)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top)
-                        
-                        // Introduction Text
-                        Text("Learn about Blepharospasm and how to manage it effectively")
-                            .font(.title3)
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(.gray)
-                            .padding(.horizontal)
-                        
-                        // Content Sections
-                        ForEach(sections) { section in
-                            EnhancedSectionView(section: section)
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: 16),
+                            GridItem(.flexible(), spacing: 16)
+                        ],
+                        spacing: 16
+                    ) {
+                        ForEach(viewModel.filteredContent()) { content in
+                            EducationCard(content: content)
                         }
                     }
                     .padding()
                 }
-                .navigationTitle("Education")
-                .navigationBarTitleDisplayMode(.large)
-                .background(Color(.systemGray6))
             }
+            .navigationTitle("Learn")
+            .background(Color(.systemGroupedBackground))
         }
-}
-
-
-struct EnhancedSectionView: View {
-    let section: EducationalSection
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Section Header
-            HStack {
-                Text(section.title)
-                    .font(.title2)
-                    .bold()
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Image(systemName: "book.fill")
-                    .foregroundColor(.blue)
-                    .font(.title2)
-            }
-            .padding(.bottom, 5)
-            
-            // Content Items
-            ForEach(section.content) { item in
-                EnhancedContentItemView(item: item)
-            }
-        }
-        .padding(20)
-        .background(Color.white)
-        .cornerRadius(15)
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
     }
 }
 
-struct EnhancedContentItemView: View {
-    let item: ContentItem
+struct EducationCard: View {
+    let content: EducationContent
+    
+    var body: some View {
+        NavigationLink(destination: EducationDetailView(content: content)) {
+            VStack(alignment: .leading, spacing: 12) {
+                // Icon
+                Image(systemName: content.iconName)
+                    .font(.system(size: 24))
+                    .foregroundColor(.blue)
+                    .frame(width: 40, height: 40)
+                    .background(Color.blue.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                
+                // Title
+                Text(content.title)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+                
+                // Description
+                Text(content.description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(3)
+                
+                Spacer()
+            }
+            .frame(height: 180)
+            .padding()
+            .background(Color(.systemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        }
+    }
+}
+
+struct EducationDetailView: View {
+    let content: EducationContent
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Header
+                HStack {
+                    Image(systemName: content.iconName)
+                        .font(.system(size: 32))
+                        .foregroundColor(.blue)
+                        .frame(width: 60, height: 60)
+                        .background(Color.blue.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 15))
+                    
+                    VStack(alignment: .leading) {
+                        Text(content.category.rawValue)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        Text(content.title)
+                            .font(.title2)
+                            .bold()
+                    }
+                }
+                .padding(.bottom)
+                
+                // Content sections - This would be expanded with real content
+                DetailSection(title: "Overview", content: content.description)
+                DetailSection(title: "Key Points", content: "• Important point 1\n• Important point 2\n• Important point 3")
+                DetailSection(title: "Tips", content: "1. Practical tip 1\n2. Practical tip 2\n3. Practical tip 3")
+                DetailSection(title: "Learn More", content: "Additional resources and references would go here.")
+            }
+            .padding()
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .background(Color(.systemGroupedBackground))
+    }
+}
+
+struct DetailSection: View {
+    let title: String
+    let content: String
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Title with icon
-            HStack(spacing: 10) {
-                Image(systemName: "circle.fill")
-                    .font(.system(size: 8))
-                    .foregroundColor(.blue)
-                
-                Text(item.title)
-                    .font(.headline)
-                    .foregroundColor(.primary)
-            }
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.primary)
             
-            // Description
-            Text(item.description)
-                .font(.subheadline)
+            Text(content)
+                .font(.body)
                 .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.leading, 22)
-        }
-        .padding(15)
-        .background(Color.blue.opacity(0.05))
-        .cornerRadius(10)
-    }
-}
-
-// Models
-struct EducationalSection: Identifiable {
-    let id = UUID()
-    let title: String
-    let content: [ContentItem]
-}
-
-struct ContentItem: Identifiable {
-    let id = UUID()
-    let title: String
-    let description: String
-}
-
-// Supporting Views
-struct SectionView: View {
-    let section: EducationalSection
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            Text(section.title)
-                .font(.title)
-                .bold()
-                .padding(.bottom, 5)
-            
-            ForEach(section.content) { item in
-                ContentItemView(item: item)
-            }
         }
         .padding()
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
-struct ContentItemView: View {
-    let item: ContentItem
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(item.title)
-                .font(.headline)
-                .foregroundColor(.blue)
-            
-            Text(item.description)
-                .font(.body)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.vertical, 5)
-    }
+#Preview {
+    EducationView()
 }
